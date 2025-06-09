@@ -1,0 +1,39 @@
+{
+	"name": "@seorii/inlang-plugin-yaml",
+	"version": "0.0.1",
+	"type": "module",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": "./dist/index.js"
+	},
+	"files": [
+		"./dist"
+	],
+	"publishConfig": {
+		"access": "public"
+	},
+	"scripts": {
+		"dev": "node ./build.js",
+		"build": "NODE_ENV=production node ./build.js",
+		"test": "tsc --noEmit && vitest run --passWithNoTests",
+		"format": "prettier ./src --write",
+		"clean": "rm -rf ./dist ./node_modules"
+	},
+	"dependencies": {
+		"@inlang/plugin": "2.4.14",
+		"@lix-js/fs": "2.2.0",
+		"@sinclair/typebox": "0.31.28",
+		"js-yaml": "^4.1.0"
+	},
+	"devDependencies": {
+		"@inlang/sdk": "0.36.3",
+		"@types/flat": "^5.0.2",
+		"@types/js-yaml": "^4.0.9",
+		"@types/lodash.merge": "4.6.7",
+		"esbuild": "^0.24.2",
+		"flat": "^5.0.2",
+		"lodash.merge": "4.6.2",
+		"typescript": "^5.5.2",
+		"vitest": "2.1.8"
+	}
+}
