@@ -7,7 +7,7 @@ import type {
   NodeishFilesystemSubset,
 } from "@inlang/plugin";
 import { PluginSettings } from "./settings.js";
-import { flattenMessages, unflattenMessages } from "./keyPaths.js";
+import { collectMessages, unflattenMessages } from "./keyPaths.js";
 import { escapeRegExp, replaceAll } from "./utilities.js";
 import YAML from 'js-yaml';
 
@@ -67,10 +67,10 @@ async function loadMessages(args: {
         const messagesFromFile = await getFileToParse(
           path,
           languageTag,
-          args.sourceLanguageTag,
-          args.nodeishFs
+          args.nodeishFs,
+          args.pluginSettings.keySeparator
         );
-        for (const [key, value] of Object.entries(messagesFromFile)) {
+        for (const [key, { value }] of messagesFromFile) {
           if (typeof value === "string") {
             const prefixedKey = prefix + ":" + key;
             addVariantToMessages(
@@ -88,10 +88,10 @@ async function loadMessages(args: {
       const messagesFromFile = await getFileToParse(
         args.pluginSettings.pathPattern,
         languageTag,
-        args.sourceLanguageTag,
-        args.nodeishFs
+        args.nodeishFs,
+        args.pluginSettings.keySeparator
       );
-      for (const [key, value] of Object.entries(messagesFromFile)) {
+      for (const [key, { value }] of messagesFromFile) {
         if (typeof value === "string") {
           addVariantToMessages(
             messages,
@@ -128,9 +128,9 @@ function isIgnoredPath(
 async function getFileToParse(
   path: string,
   languageTag: string,
-  sourceLanguageTag: string,
-  nodeishFs: NodeishFilesystemSubset
-): Promise<Record<string, unknown>> {
+  nodeishFs: NodeishFilesystemSubset,
+  keySeparator: PluginSettings["keySeparator"] = "."
+): Promise<ReturnType<typeof collectMessages>> {
   const pathWithLanguage = path.replace("{languageTag}", languageTag);
   // get file, make sure that is not braking when the namespace doesn't exist in every languageTag dir
   try {
@@ -162,12 +162,12 @@ async function getFileToParse(
       validateMessageValue(value, [key], pathWithLanguage);
     }
 
-    return flattenMessages(yaml as Record<string, unknown>, pathWithLanguage);
+    return collectMessages(yaml as Record<string, unknown>, pathWithLanguage, keySeparator);
   } catch (e) {
     // if the namespace doesn't exist for this dir -> continue
     if ((e as any).code === "FileNotFound" || (e as any).code === "ENOENT") {
       // file does not exist yet
-      return {};
+      return new Map();
     }
     throw e;
   }
@@ -345,6 +345,34 @@ async function saveMessages(args: {
     }
   }
 
+  const originalPathsByFile = new Map<string, Map<string, string[]>>();
+  const fallbackPathsByNamespace = new Map<string, Map<string, string[]>>();
+  if (args.pluginSettings.keySeparator === "_") {
+    // Snapshot all paths before saving: deleting a source variant must not erase
+    // the path needed by a newly added locale. The Set visits the source first.
+    for (const languageTag of languageTags) {
+      for (const [namespace, pattern] of pathPatterns) {
+        if (isIgnoredPath(pattern, languageTag, args.pluginSettings.ignore)) continue;
+        const entries = await getFileToParse(pattern, languageTag, args.nodeishFs, "_");
+        const paths = new Map([...entries].map(([id, entry]) => [id, entry.path]));
+        originalPathsByFile.set(pattern.replace("{languageTag}", languageTag), paths);
+        let fallback = fallbackPathsByNamespace.get(namespace);
+        if (!fallback) {
+          fallback = new Map();
+          fallbackPathsByNamespace.set(namespace, fallback);
+        }
+        for (const [id, path] of paths) {
+          if (!fallback.has(id)) fallback.set(id, path);
+        }
+      }
+    }
+  }
+
+  const filesToSave: {
+    namespace: string;
+    path: string;
+    messages: Record<Message["id"], Variant["pattern"]>;
+  }[] = [];
   if (typeof args.pluginSettings.pathPattern === "object") {
     // with namespaces
     const storage: Record<
@@ -378,40 +406,7 @@ async function saveMessages(args: {
         const pathWithLanguage = (
           args.pluginSettings.pathPattern[prefix] as string
         ).replace("{languageTag}", languageTag);
-        if (Object.keys(value).length === 0) {
-          try {
-            await args.nodeishFs.readFile(pathWithLanguage, { encoding: "utf-8" });
-          } catch (error) {
-            if (
-              (error as any).code === "FileNotFound" ||
-              (error as any).code === "ENOENT"
-            ) {
-              continue;
-            }
-            throw error;
-          }
-        }
-        // check if directory exists
-        const directoryPath = pathWithLanguage
-          .split("/")
-          .slice(0, -1)
-          .join("/");
-        try {
-          await args.nodeishFs.readdir(directoryPath);
-        } catch (error) {
-          if (
-            (error as any).code !== "FileNotFound" &&
-            (error as any).code !== "ENOENT"
-          ) {
-            throw error;
-          }
-          await args.nodeishFs.mkdir(directoryPath, { recursive: true });
-        }
-
-        await args.nodeishFs.writeFile(
-          pathWithLanguage,
-          serializeFile(value, args.pluginSettings.variableReferencePattern)
-        );
+        filesToSave.push({ namespace: prefix, path: pathWithLanguage, messages: value });
       }
     }
   } else {
@@ -436,43 +431,51 @@ async function saveMessages(args: {
         languageTag
       );
       if (isIgnoredPath(pathWithLanguage, languageTag, args.pluginSettings.ignore)) continue;
-      if (Object.keys(value).length === 0) {
-        try {
-          await args.nodeishFs.readFile(pathWithLanguage, { encoding: "utf-8" });
-        } catch (error) {
-          if (
-            (error as any).code === "FileNotFound" ||
-            (error as any).code === "ENOENT"
-          ) {
-            continue;
-          }
-          throw error;
-        }
-      }
+      filesToSave.push({ namespace: "", path: pathWithLanguage, messages: value });
+    }
+  }
+
+  // Validate every output tree before the first write, including conflicts
+  // between existing target paths and paths inherited from another locale.
+  const serializedFiles = filesToSave.map((file) => ({
+    ...file,
+    content: serializeFile(
+      file.messages,
+      args.pluginSettings.variableReferencePattern,
+      args.pluginSettings.keySeparator,
+      new Map([
+        ...(fallbackPathsByNamespace.get(file.namespace) ?? []),
+        ...(originalPathsByFile.get(file.path) ?? []),
+      ])
+    ),
+  }));
+  for (const { path, messages, content } of serializedFiles) {
+    if (Object.keys(messages).length === 0) {
       try {
-        await args.nodeishFs.readdir(
-          pathWithLanguage.split("/").slice(0, -1).join("/")
-        );
+        await args.nodeishFs.readFile(path, { encoding: "utf-8" });
       } catch (error) {
         if (
-          (error as any).code !== "FileNotFound" &&
-          (error as any).code !== "ENOENT"
+          (error as any).code === "FileNotFound" ||
+          (error as any).code === "ENOENT"
         ) {
-          throw error;
+          continue;
         }
-        await args.nodeishFs.mkdir(
-          pathWithLanguage.split("/").slice(0, -1).join("/"),
-          {
-            recursive: true,
-          }
-        );
+        throw error;
       }
-
-      await args.nodeishFs.writeFile(
-        pathWithLanguage,
-        serializeFile(value, args.pluginSettings.variableReferencePattern)
-      );
     }
+    const directoryPath = path.split("/").slice(0, -1).join("/");
+    try {
+      await args.nodeishFs.readdir(directoryPath);
+    } catch (error) {
+      if (
+        (error as any).code !== "FileNotFound" &&
+        (error as any).code !== "ENOENT"
+      ) {
+        throw error;
+      }
+      await args.nodeishFs.mkdir(directoryPath, { recursive: true });
+    }
+    await args.nodeishFs.writeFile(path, content);
   }
 }
 
@@ -485,13 +488,15 @@ async function saveMessages(args: {
  */
 function serializeFile(
   messages: Record<Message["id"], Variant["pattern"]>,
-  variableReferencePattern: PluginSettings["variableReferencePattern"]
+  variableReferencePattern: PluginSettings["variableReferencePattern"],
+  keySeparator: PluginSettings["keySeparator"],
+  originalPaths: ReadonlyMap<string, readonly string[]>
 ): string {
   const result: Record<string, string> = Object.create(null);
   for (const [messageId, pattern] of Object.entries(messages)) {
     result[messageId] = serializePattern(pattern, variableReferencePattern!);
   }
-  return YAML.dump(unflattenMessages(result));
+  return YAML.dump(unflattenMessages(result, keySeparator, originalPaths));
 }
 
 /**

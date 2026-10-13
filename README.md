@@ -67,8 +67,10 @@ and the setting must contain one or two strings. Adjacent references such as
 
 ## Key paths and preservation
 
-Dots separate nested key segments in message IDs. A literal dot in a YAML key
-is escaped as `\.` in the ID, and a literal backslash is escaped as `\\`.
+The optional `keySeparator` setting accepts `"."` or `"_"` and defaults to `"."`.
+In the default mode, dots separate nested key segments in message IDs. A literal
+dot in a YAML key is escaped as `\.` in the ID, and a literal backslash is
+escaped as `\\`.
 
 | YAML value | Message ID |
 | --- | --- |
@@ -77,11 +79,54 @@ is escaped as `\.` in the ID, and a literal backslash is escaped as `\\`.
 | `trailing.: Text` | `trailing\.` |
 | `a\b: Text` | `a\\b` |
 
-These keys can coexist without losing translations. Each file retains its own
-mapping structure, independent of other languages, namespaces, or previously
-loaded projects. When upgrading from the original experimental implementation,
-reload the YAML files to obtain the escaped IDs; previously stored IDs containing
-literal dots or backslashes may need migration.
+These keys can coexist without losing translations in the default mode. Each file
+retains its own mapping structure, independent of other languages, namespaces,
+or previously loaded projects. When upgrading from the original experimental
+implementation, reload the YAML files to obtain the escaped IDs; previously
+stored IDs containing literal dots or backslashes may need migration.
+
+### Underscore IDs for Trinity
+
+To produce Trinity-style IDs, configure the plugin with `keySeparator: "_"`:
+
+```json
+{
+  "plugin.inlang.yaml": {
+    "pathPattern": "./locale/{languageTag}.yaml",
+    "keySeparator": "_"
+  }
+}
+```
+
+In this mode, raw YAML key segments are joined with underscores. Literal
+underscores, dots, and backslashes in keys remain unchanged in message IDs.
+
+| YAML value | Message ID |
+| --- | --- |
+| `language: { zh_hans: Simplified Chinese }` | `language_zh_hans` |
+| `problem: { list: { sort: { solved_asc: Ascending } } }` | `problem_list_sort_solved_asc` |
+| `literal_key: Text` | `literal_key` |
+| `a.b: Text` | `a.b` |
+| `a\b: Text` | `a\b` |
+
+Underscore IDs can be ambiguous: `a_b: Flat` and `a: { b: Nested }` both produce
+`a_b`. If both occur in the same file, loading fails with a collision error.
+
+Saving reads the existing key paths before writing files. Each existing locale
+keeps its own paths. A new locale or message variant reuses a matching ID's path
+from the source language first, then other locales in the same namespace. An ID
+with no known path is saved as a literal root key: a new `brand_new_key` ID creates
+`brand_new_key: Text`. The plugin does not infer nesting from its underscores.
+Ignored files are not read or written, including when looking for reusable paths.
+Path information is collected for each save and is not shared between projects.
+
+Changing `keySeparator` changes message IDs. Reload resources and update stored
+IDs or application references when switching modes. This setting does not convert
+unsupported YAML values: unquoted booleans, numbers, and dates are still rejected.
+Check Trinity locale values and quote translation text before switching plugins;
+choosing underscore IDs alone does not make existing locale files compatible.
+
+### Saving and supported documents
 
 Saving receives the complete message collection. Removing the last message in an
 existing file writes an empty mapping, so deleted translations do not reappear.

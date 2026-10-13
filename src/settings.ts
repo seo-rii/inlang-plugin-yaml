@@ -25,6 +25,15 @@ export const PluginSettings = Type.Object({
       { minProperties: 1, additionalProperties: false },
     ),
   ]),
+  keySeparator: Type.Optional(
+    Type.Union([Type.Literal("."), Type.Literal("_")], {
+      title: "Message key separator",
+      description:
+        "Join nested YAML keys with '.' (default, escaping literal dots and backslashes) or '_' (preserving literal keys for underscore-based message IDs). Underscore mode rejects ambiguous IDs and preserves existing YAML paths when saving.",
+      default: ".",
+      examples: [".", "_"],
+    }),
+  ),
   variableReferencePattern: Type.Optional(
     Type.Array(Type.String({ minLength: 1 }), {
       minItems: 1,
