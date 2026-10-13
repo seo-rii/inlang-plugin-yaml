@@ -1,11 +1,16 @@
 /** Dots separate path segments; backslashes escape literal dots and backslashes. */
-export function flattenMessages(value: Record<string, unknown>): Record<string, string> {
+export function flattenMessages(
+  value: Record<string, unknown>,
+  source = "YAML document"
+): Record<string, string> {
   const messages: Record<string, string> = Object.create(null);
   function visit(mapping: Record<string, unknown>, parent: string[]) {
     for (const [key, child] of Object.entries(mapping)) {
       const path = [...parent, key.replace(/[\\.]/g, "\\$&")];
       if (typeof child === "string") {
         messages[path.join(".")] = child;
+      } else if (Array.isArray(child)) {
+        throw new TypeError(`YAML sequences are not supported in ${source} at ${path.join(".")}`);
       } else if (child !== null && typeof child === "object") {
         visit(child as Record<string, unknown>, path);
       } else {
