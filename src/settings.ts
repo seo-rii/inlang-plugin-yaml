@@ -1,10 +1,10 @@
 // pluginOptions for yaml plugin
 import { Type, type Static } from "@sinclair/typebox";
 const PathPattern = Type.String({
-  pattern: "^(\\./|\\../|/)[^*]*\\{languageTag\\}[^*]*\\.yaml",
+  pattern: "^(?![\\s\\S]*[\\r\\n])(?:\\./|\\.\\./|/)[^*?\\[\\]{}]*\\{languageTag\\}[^*?\\[\\]{}]*\\.yaml$",
   title: "Path to language files",
   description:
-    "Specify the pathPattern to locate language files in your repository. It must include `{languageTag}` and end with `.yaml`.",
+    "Specify a literal path to language files in your repository. It must contain exactly one `{languageTag}`, end with `.yaml`, and contain no glob patterns.",
   examples: [
     "./{languageTag}/file.yaml",
     "../folder/{languageTag}/file.yaml",
@@ -17,15 +17,18 @@ export const PluginSettings = Type.Object({
     PathPattern,
     Type.Record(
       Type.String({
-        pattern: "^[^.]+$",
-        description: "Dots are not allowd ",
+        pattern: "^[^.:]+$",
+        description: "Namespace names must be nonempty and cannot contain dots or colons.",
         examples: ["website", "app", "homepage"],
       }),
       PathPattern,
+      { minProperties: 1, additionalProperties: false },
     ),
   ]),
   variableReferencePattern: Type.Optional(
-    Type.Array(Type.String(), {
+    Type.Array(Type.String({ minLength: 1 }), {
+      minItems: 1,
+      maxItems: 2,
       title: "Variable reference pattern",
       description:
         "Literal delimiters for variable references. Define an opening delimiter and an optional closing delimiter. The default is '{' and '}'.",
