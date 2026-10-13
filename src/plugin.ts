@@ -346,14 +346,14 @@ async function saveMessages(args: {
     const storage: Record<
       LanguageTag,
       Record<string, Record<Message["id"], Variant["pattern"]>>
-    > = {};
+    > = Object.create(null);
     for (const languageTag of resolveOrderOfLanguageTags(
       args.languageTags,
       args.sourceLanguageTag
     )) {
-      storage[languageTag] = {};
+      storage[languageTag] = Object.create(null);
       for (const prefix of Object.keys(args.pluginSettings.pathPattern)) {
-        storage[languageTag]![prefix] = {};
+        storage[languageTag]![prefix] = Object.create(null);
       }
     }
     for (const message of args.messages) {
@@ -363,8 +363,8 @@ async function saveMessages(args: {
           : (Object.keys(args.pluginSettings.pathPattern)[0] as string);
         const resolvedId = message.id.replace(prefix + ":", "");
 
-        storage[variant.languageTag] ??= {};
-        storage[variant.languageTag]![prefix] ??= {};
+        storage[variant.languageTag] ??= Object.create(null);
+        storage[variant.languageTag]![prefix] ??= Object.create(null);
         storage[variant.languageTag]![prefix]![resolvedId] = variant.pattern;
       }
     }
@@ -404,18 +404,17 @@ async function saveMessages(args: {
     }
   } else {
     // without namespaces
-    const storage:
-      | Record<LanguageTag, Record<Message["id"], Variant["pattern"]>>
-      | undefined = {};
+    const storage: Record<LanguageTag, Record<Message["id"], Variant["pattern"]>> =
+      Object.create(null);
     for (const languageTag of resolveOrderOfLanguageTags(
       args.languageTags,
       args.sourceLanguageTag
     )) {
-      storage[languageTag] = {};
+      storage[languageTag] = Object.create(null);
     }
     for (const message of args.messages) {
       for (const variant of message.variants) {
-        storage[variant.languageTag] ??= {};
+        storage[variant.languageTag] ??= Object.create(null);
         storage[variant.languageTag]![message.id] = variant.pattern;
       }
     }
