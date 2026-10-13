@@ -8,7 +8,7 @@ import type {
 } from "@inlang/sdk";
 import { PluginSettings } from "./settings.js";
 import { flattenMessages, unflattenMessages } from "./keyPaths.js";
-import { escapeRegExp } from "./utilities.js";
+import { escapeRegExp, replaceAll } from "./utilities.js";
 import YAML from 'js-yaml';
 
 const id = "plugin.inlang.yaml";
@@ -63,6 +63,7 @@ async function loadMessages(args: {
       for (const [prefix, path] of Object.entries(
         args.pluginSettings.pathPattern
       )) {
+        if (isIgnoredPath(path, languageTag, args.pluginSettings.ignore)) continue;
         const messagesFromFile = await getFileToParse(
           path,
           languageTag,
@@ -83,6 +84,7 @@ async function loadMessages(args: {
         }
       }
     } else {
+      if (isIgnoredPath(args.pluginSettings.pathPattern, languageTag, args.pluginSettings.ignore)) continue;
       const messagesFromFile = await getFileToParse(
         args.pluginSettings.pathPattern,
         languageTag,
@@ -103,6 +105,17 @@ async function loadMessages(args: {
     }
   }
   return messages;
+}
+
+function isIgnoredPath(
+  path: string,
+  languageTag: LanguageTag,
+  ignore: PluginSettings["ignore"]
+): boolean {
+  const resolvedPath = replaceAll(path, "{languageTag}", languageTag).replace(/^(?:\.\/)+/, "");
+  return ignore?.some((ignoredPath) =>
+    replaceAll(ignoredPath, "{languageTag}", languageTag).replace(/^(?:\.\/)+/, "") === resolvedPath
+  ) ?? false;
 }
 
 /**
@@ -361,6 +374,7 @@ async function saveMessages(args: {
     }
     for (const [languageTag, _value] of Object.entries(storage)) {
       for (const [prefix, value] of Object.entries(_value)) {
+        if (isIgnoredPath(args.pluginSettings.pathPattern[prefix] as string, languageTag, args.pluginSettings.ignore)) continue;
         const pathWithLanguage = (
           args.pluginSettings.pathPattern[prefix] as string
         ).replace("{languageTag}", languageTag);
@@ -393,6 +407,7 @@ async function saveMessages(args: {
           }
           await args.nodeishFs.mkdir(directoryPath, { recursive: true });
         }
+
         await args.nodeishFs.writeFile(
           pathWithLanguage,
           serializeFile(value, args.pluginSettings.variableReferencePattern)
@@ -420,6 +435,7 @@ async function saveMessages(args: {
         "{languageTag}",
         languageTag
       );
+      if (isIgnoredPath(pathWithLanguage, languageTag, args.pluginSettings.ignore)) continue;
       if (Object.keys(value).length === 0) {
         try {
           await args.nodeishFs.readFile(pathWithLanguage, { encoding: "utf-8" });

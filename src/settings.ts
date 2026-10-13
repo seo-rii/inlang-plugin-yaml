@@ -38,7 +38,8 @@ export const PluginSettings = Type.Object({
   ignore: Type.Optional(
     Type.Array(Type.String(), {
       title: "Ignore paths",
-      description: "Set a path that should be ignored.",
+      description:
+        "Exact file paths to exclude from both loading and saving. `{languageTag}` is replaced for each language, and a leading `./` is optional. Glob patterns are not supported.",
     }),
   ),
 });
