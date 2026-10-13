@@ -40,6 +40,8 @@ export const plugin: Plugin<{
       nodeishFs,
       pluginSettings: settings[id],
       messages,
+      languageTags: settings.languageTags,
+      sourceLanguageTag: settings.sourceLanguageTag,
     });
   },
 };
@@ -313,13 +315,64 @@ async function saveMessages(args: {
   nodeishFs: NodeishFilesystemSubset;
   pluginSettings: PluginSettings;
   messages: Message[];
+  languageTags: Readonly<LanguageTag[]>;
+  sourceLanguageTag: LanguageTag;
 }) {
+  const languageTags = new Set([
+    args.sourceLanguageTag,
+    ...args.languageTags,
+    ...args.messages.flatMap((message) =>
+      message.variants.map((variant) => variant.languageTag)
+    ),
+  ]);
+  const pathPatterns = typeof args.pluginSettings.pathPattern === "string"
+    ? [["", args.pluginSettings.pathPattern] as const]
+    : Object.entries(args.pluginSettings.pathPattern);
+  const outputPaths = new Map<string, string>();
+  for (const languageTag of languageTags) {
+    for (const [namespace, pattern] of pathPatterns) {
+      const path = pattern.replace("{languageTag}", languageTag);
+      const absolute = path.startsWith("/");
+      const segments: string[] = [];
+      for (const segment of path.split("/")) {
+        if (segment === "" || segment === ".") continue;
+        if (segment === "..") {
+          if (segments.length > 0 && segments[segments.length - 1] !== "..") {
+            segments.pop();
+          } else if (!absolute) {
+            segments.push(segment);
+          }
+        } else {
+          segments.push(segment);
+        }
+      }
+      const normalizedPath = (absolute ? "/" : "") + segments.join("/") || ".";
+      const target = `${namespace ? `namespace ${JSON.stringify(namespace)}, ` : ""}language ${JSON.stringify(languageTag)}`;
+      const previous = outputPaths.get(normalizedPath);
+      if (previous !== undefined) {
+        throw new Error(
+          `Duplicate YAML output path ${JSON.stringify(normalizedPath)}: ${previous} and ${target} resolve to the same file. Configure a distinct path for each namespace and language.`
+        );
+      }
+      outputPaths.set(normalizedPath, target);
+    }
+  }
+
   if (typeof args.pluginSettings.pathPattern === "object") {
     // with namespaces
     const storage: Record<
       LanguageTag,
       Record<string, Record<Message["id"], Variant["pattern"]>>
     > = {};
+    for (const languageTag of resolveOrderOfLanguageTags(
+      args.languageTags,
+      args.sourceLanguageTag
+    )) {
+      storage[languageTag] = {};
+      for (const prefix of Object.keys(args.pluginSettings.pathPattern)) {
+        storage[languageTag]![prefix] = {};
+      }
+    }
     for (const message of args.messages) {
       for (const variant of message.variants) {
         const prefix: string = message.id.includes(":")
@@ -333,10 +386,25 @@ async function saveMessages(args: {
       }
     }
     for (const [languageTag, _value] of Object.entries(storage)) {
-      for (const path of Object.values(args.pluginSettings.pathPattern)) {
+      for (const [prefix, value] of Object.entries(_value)) {
+        const pathWithLanguage = (
+          args.pluginSettings.pathPattern[prefix] as string
+        ).replace("{languageTag}", languageTag);
+        if (Object.keys(value).length === 0) {
+          try {
+            await args.nodeishFs.readFile(pathWithLanguage, { encoding: "utf-8" });
+          } catch (error) {
+            if (
+              (error as any).code === "FileNotFound" ||
+              (error as any).code === "ENOENT"
+            ) {
+              continue;
+            }
+            throw error;
+          }
+        }
         // check if directory exists
-        const directoryPath = path
-          .replace("{languageTag}", languageTag)
+        const directoryPath = pathWithLanguage
           .split("/")
           .slice(0, -1)
           .join("/");
@@ -345,11 +413,6 @@ async function saveMessages(args: {
         } catch {
           await args.nodeishFs.mkdir(directoryPath);
         }
-      }
-      for (const [prefix, value] of Object.entries(_value)) {
-        const pathWithLanguage = (
-          args.pluginSettings.pathPattern[prefix] as string
-        ).replace("{languageTag}", languageTag);
         await args.nodeishFs.writeFile(
           pathWithLanguage,
           serializeFile(value, args.pluginSettings.variableReferencePattern)
@@ -361,6 +424,12 @@ async function saveMessages(args: {
     const storage:
       | Record<LanguageTag, Record<Message["id"], Variant["pattern"]>>
       | undefined = {};
+    for (const languageTag of resolveOrderOfLanguageTags(
+      args.languageTags,
+      args.sourceLanguageTag
+    )) {
+      storage[languageTag] = {};
+    }
     for (const message of args.messages) {
       for (const variant of message.variants) {
         storage[variant.languageTag] ??= {};
@@ -372,6 +441,19 @@ async function saveMessages(args: {
         "{languageTag}",
         languageTag
       );
+      if (Object.keys(value).length === 0) {
+        try {
+          await args.nodeishFs.readFile(pathWithLanguage, { encoding: "utf-8" });
+        } catch (error) {
+          if (
+            (error as any).code === "FileNotFound" ||
+            (error as any).code === "ENOENT"
+          ) {
+            continue;
+          }
+          throw error;
+        }
+      }
       try {
         await args.nodeishFs.readdir(
           pathWithLanguage.split("/").slice(0, -1).join("/")
