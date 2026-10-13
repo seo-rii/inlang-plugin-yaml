@@ -393,8 +393,14 @@ async function saveMessages(args: {
           .join("/");
         try {
           await args.nodeishFs.readdir(directoryPath);
-        } catch {
-          await args.nodeishFs.mkdir(directoryPath);
+        } catch (error) {
+          if (
+            (error as any).code !== "FileNotFound" &&
+            (error as any).code !== "ENOENT"
+          ) {
+            throw error;
+          }
+          await args.nodeishFs.mkdir(directoryPath, { recursive: true });
         }
         await args.nodeishFs.writeFile(
           pathWithLanguage,
@@ -440,7 +446,13 @@ async function saveMessages(args: {
         await args.nodeishFs.readdir(
           pathWithLanguage.split("/").slice(0, -1).join("/")
         );
-      } catch {
+      } catch (error) {
+        if (
+          (error as any).code !== "FileNotFound" &&
+          (error as any).code !== "ENOENT"
+        ) {
+          throw error;
+        }
         await args.nodeishFs.mkdir(
           pathWithLanguage.split("/").slice(0, -1).join("/"),
           {
