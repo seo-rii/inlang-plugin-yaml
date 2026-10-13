@@ -28,8 +28,8 @@ export const PluginSettings = Type.Object({
     Type.Array(Type.String(), {
       title: "Variable reference pattern",
       description:
-        "The pattern to match content in the messages. You can define an opening and closing pattern. The closing pattern is not required. The default is '{{' and '}}'.",
-      examples: ["{ and }", "{{ and }}", "< and >", "@:"],
+        "Literal delimiters for variable references. Define an opening delimiter and an optional closing delimiter. The default is '{' and '}'.",
+      examples: [["{", "}"], ["{{", "}}"], ["<", ">"], ["@:"]],
     }),
   ),
   ignore: Type.Optional(

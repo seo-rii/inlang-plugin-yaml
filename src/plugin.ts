@@ -8,6 +8,7 @@ import type {
 } from "@inlang/sdk";
 import { PluginSettings } from "./settings.js";
 import { flattenMessages, unflattenMessages } from "./keyPaths.js";
+import { escapeRegExp } from "./utilities.js";
 import YAML from 'js-yaml';
 
 const id = "plugin.inlang.yaml";
@@ -255,37 +256,27 @@ function parsePattern(
   text: string,
   variableReferencePattern: string[]
 ): Variant["pattern"] {
-  // dependent on the variableReferencePattern, different regex
-  // expressions are used for matching
-  const expression = variableReferencePattern[1]
-    ? new RegExp(
-        `(\\${variableReferencePattern[0]}[^\\${variableReferencePattern[1]}]+\\${variableReferencePattern[1]})`,
-        "g"
-      )
-    : new RegExp(`(${variableReferencePattern}\\w+)`, "g");
-  const pattern: Variant["pattern"] = text
-    .split(expression)
-    .filter((element) => element !== "")
-    .map((element) => {
-      if (expression.test(element) && variableReferencePattern[0]) {
-        return {
-          type: "VariableReference",
-          name: variableReferencePattern[1]
-            ? element.slice(
-                variableReferencePattern[0].length,
-                // negative index, removing the trailing pattern
-                -variableReferencePattern[1].length
-              )
-            : element.slice(variableReferencePattern[0].length),
-        };
-      } else {
-        return {
-          type: "Text",
-          value: element,
-        };
-      }
-    });
-
+  const [opening, closing] = variableReferencePattern;
+  const escapedClosing = closing ? escapeRegExp(closing) : undefined;
+  const expression = new RegExp(
+    closing
+      ? `${escapeRegExp(opening!)}((?:(?!${escapedClosing})[\\s\\S])+)${escapedClosing}`
+      : `${escapeRegExp(opening!)}(\\w+)`,
+    "g"
+  );
+  const pattern: Variant["pattern"] = [];
+  let lastIndex = 0;
+  for (const match of text.matchAll(expression)) {
+    const index = match.index!;
+    if (index > lastIndex) {
+      pattern.push({ type: "Text", value: text.slice(lastIndex, index) });
+    }
+    pattern.push({ type: "VariableReference", name: match[1]! });
+    lastIndex = index + match[0].length;
+  }
+  if (lastIndex < text.length) {
+    pattern.push({ type: "Text", value: text.slice(lastIndex) });
+  }
   return pattern;
 }
 
