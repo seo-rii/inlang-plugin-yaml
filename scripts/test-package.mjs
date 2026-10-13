@@ -94,17 +94,41 @@ const settings: LoadArgs["settings"] = {
 };
 // @ts-expect-error Paths must remain typed strings or namespace records.
 const invalidPath: LoadArgs["settings"]["plugin.inlang.yaml"]["pathPattern"] = 42;
+const trinitySettings: LoadArgs["settings"] = {
+  ...settings,
+  "plugin.inlang.yaml": {
+    pathPattern: "./locale/{languageTag}.yaml",
+    keySeparator: "_",
+  },
+};
+const dotSeparator: LoadArgs["settings"]["plugin.inlang.yaml"]["keySeparator"] = ".";
+// @ts-expect-error Only dot and underscore key separators are supported.
+const invalidSeparator: LoadArgs["settings"]["plugin.inlang.yaml"]["keySeparator"] = "/";
 declare const nodeishFs: LoadArgs["nodeishFs"];
 const messages = await plugin.loadMessages!({ settings, nodeishFs });
 const messageId: string = messages[0]?.id ?? "";
+await plugin.loadMessages!({ settings: trinitySettings, nodeishFs });
 `);
   execFileSync(process.execPath, [require.resolve("typescript/bin/tsc"), "--project", consumer], {
     cwd: consumer,
     stdio: "inherit",
   });
 
+  const trinitySource = [
+    "language:",
+    "  zh_hans: Simplified Chinese",
+    "problem:",
+    "  list:",
+    "    sort:",
+    "      solved_asc: Ascending",
+    "literal_key: Literal underscore",
+    "literal.dot: Literal dot",
+    "literal\\key: Literal backslash",
+    "",
+  ].join("\n");
   writeFileSync(join(consumer, "smoke.mjs"), `
 import assert from "node:assert/strict";
+import YAML from "js-yaml";
 import plugin from ${JSON.stringify(pkg.name)};
 const messages = await plugin.loadMessages({
   settings: {
@@ -117,6 +141,48 @@ const messages = await plugin.loadMessages({
 });
 assert.equal(messages[0].id, "greeting");
 assert.deepEqual(messages[0].variants[0].pattern, [{ type: "Text", value: "Hello" }]);
+
+const trinitySource = ${JSON.stringify(trinitySource)};
+const files = new Map([["./locale/en.yaml", trinitySource]]);
+const trinitySettings = {
+  sourceLanguageTag: "en",
+  languageTags: ["en"],
+  modules: [],
+  "plugin.inlang.yaml": {
+    pathPattern: "./locale/{languageTag}.yaml",
+    keySeparator: "_",
+  },
+};
+const nodeishFs = {
+  readFile: async (path) => {
+    if (!files.has(path)) throw Object.assign(new Error("Missing file: " + path), { code: "ENOENT" });
+    return files.get(path);
+  },
+  readdir: async () => [],
+  mkdir: async () => undefined,
+  writeFile: async (path, contents) => { files.set(path, contents); },
+};
+const trinityMessages = await plugin.loadMessages({ settings: trinitySettings, nodeishFs });
+assert.deepEqual(trinityMessages.map((message) => message.id), [
+  "language_zh_hans",
+  "problem_list_sort_solved_asc",
+  "literal_key",
+  "literal.dot",
+  ${JSON.stringify("literal\\key")},
+]);
+trinityMessages.push({
+  id: "brand_new_key",
+  alias: {},
+  selectors: [],
+  variants: [{ languageTag: "en", match: [], pattern: [{ type: "Text", value: "New" }] }],
+});
+await plugin.saveMessages({ settings: trinitySettings, nodeishFs, messages: trinityMessages });
+assert.deepEqual(YAML.load(files.get("./locale/en.yaml")), {
+  ...YAML.load(trinitySource),
+  brand_new_key: "New",
+});
+const reloaded = await plugin.loadMessages({ settings: trinitySettings, nodeishFs });
+assert.deepEqual(reloaded, trinityMessages);
 `);
   execFileSync(process.execPath, [join(consumer, "smoke.mjs")], { cwd: consumer, stdio: "inherit" });
   console.log("Packed plugin resolves and type-checks with production dependencies only.");
