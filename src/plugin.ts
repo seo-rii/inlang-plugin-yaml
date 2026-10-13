@@ -118,7 +118,7 @@ async function getFileToParse(
   languageTag: string,
   sourceLanguageTag: string,
   nodeishFs: NodeishFilesystemSubset
-): Promise<Record<string, string>> {
+): Promise<Record<string, unknown>> {
   const pathWithLanguage = path.replace("{languageTag}", languageTag);
   // get file, make sure that is not braking when the namespace doesn't exist in every languageTag dir
   try {
@@ -127,7 +127,24 @@ async function getFileToParse(
     });
     // analyze format of file
 
-    const yaml = YAML.load(file) as any;
+    let hasContent = false;
+    const loaded = YAML.load(file, {
+      filename: pathWithLanguage,
+      listener: (event, state) => {
+        if (event === "close" && state.kind !== null) hasContent = true;
+      },
+    });
+    const yaml = loaded == null && !hasContent ? {} : loaded;
+    if (
+      yaml === null ||
+      typeof yaml !== "object" ||
+      Array.isArray(yaml) ||
+      (Object.getPrototypeOf(yaml) !== Object.prototype && Object.getPrototypeOf(yaml) !== null)
+    ) {
+      throw new Error(
+        `Invalid YAML document in ${JSON.stringify(pathWithLanguage)}: expected a mapping of message keys.`
+      );
+    }
 
     for (const [key, value] of Object.entries(yaml)) {
       validateMessageValue(value, [key], pathWithLanguage);
@@ -137,14 +154,14 @@ async function getFileToParse(
       hasNestedKeys = true;
     }
 
-    const flattenedMessages = hasNestedKeys
+    const flattenedMessages: Record<string, unknown> = hasNestedKeys
       ? flatten(yaml, {
           transformKey: function (key) {
             //replace dots in keys with unicode
             return replaceAll(key, ".", "u002E");
           },
         })
-      : yaml;
+      : yaml as Record<string, unknown>;
 
     return flattenedMessages;
   } catch (e) {
