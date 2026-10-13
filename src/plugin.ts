@@ -71,7 +71,7 @@ async function loadMessages(args: {
           args.nodeishFs
         );
         for (const [key, value] of Object.entries(messagesFromFile)) {
-          if (Object.keys(value).length !== 0) {
+          if (typeof value === "string") {
             const prefixedKey = prefix + ":" + replaceAll(key, "u002E", ".");
             addVariantToMessages(
               messages,
@@ -91,7 +91,7 @@ async function loadMessages(args: {
         args.nodeishFs
       );
       for (const [key, value] of Object.entries(messagesFromFile)) {
-        if (Object.keys(value).length !== 0) {
+        if (typeof value === "string") {
           addVariantToMessages(
             messages,
             replaceAll(key, "u002E", "."),
@@ -129,6 +129,10 @@ async function getFileToParse(
 
     const yaml = YAML.load(file) as any;
 
+    for (const [key, value] of Object.entries(yaml)) {
+      validateMessageValue(value, [key], pathWithLanguage);
+    }
+
     if (Object.values(yaml).some((value) => typeof value === "object")) {
       hasNestedKeys = true;
     }
@@ -151,6 +155,40 @@ async function getFileToParse(
     }
     throw e;
   }
+}
+
+function validateMessageValue(
+  value: unknown,
+  keyPath: string[],
+  filePath: string,
+  ancestors = new Set<object>()
+): void {
+  if (typeof value === "string") return;
+
+  if (
+    value !== null &&
+    typeof value === "object" &&
+    (Array.isArray(value) || Object.getPrototypeOf(value) === Object.prototype ||
+      Object.getPrototypeOf(value) === null)
+  ) {
+    if (ancestors.has(value)) {
+      throw new Error(
+        `Circular YAML alias in ${JSON.stringify(filePath)} at ${JSON.stringify(keyPath)}.`
+      );
+    }
+    ancestors.add(value);
+    for (const [key, child] of Object.entries(value)) {
+      validateMessageValue(child, [...keyPath, key], filePath, ancestors);
+    }
+    ancestors.delete(value);
+    return;
+  }
+
+  const received = value === null ? "null" :
+    typeof value === "object" ? Object.prototype.toString.call(value) : typeof value;
+  throw new Error(
+    `Unsupported YAML message value in ${JSON.stringify(filePath)} at ${JSON.stringify(keyPath)}: expected a string, received ${received}.`
+  );
 }
 
 /**
