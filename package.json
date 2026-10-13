@@ -4,7 +4,10 @@
 	"type": "module",
 	"types": "./dist/index.d.ts",
 	"exports": {
-		".": "./dist/index.js"
+		".": {
+			"types": "./dist/index.d.ts",
+			"default": "./dist/index.js"
+		}
 	},
 	"files": [
 		"./dist"
@@ -14,7 +17,8 @@
 	},
 	"scripts": {
 		"dev": "node ./build.js",
-		"build": "NODE_ENV=production node ./build.js",
+		"build": "tsc -p tsconfig.build.json && NODE_ENV=production node ./build.js",
+		"test:package": "pnpm build && node ./scripts/test-package.mjs",
 		"test": "tsc --noEmit && vitest run --passWithNoTests",
 		"format": "prettier ./src --write",
 		"clean": "rm -rf ./dist ./node_modules"
