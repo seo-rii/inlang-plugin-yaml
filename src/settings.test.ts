@@ -1,19 +1,14 @@
-/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { expect, test } from "vitest";
-// import { Message, ProjectSettings, Variant, createVariant, getVariant } from "@inlang/sdk"
 import { plugin } from "./plugin.js";
-// import { createNodeishMemoryFs } from "@lix-js/fs"
 import { Value } from "@sinclair/typebox/value";
-
-// const pluginId = "plugin.inlang.json"
 
 test("valid path patterns", async () => {
   const validPathPatterns = [
-    "/folder/{languageTag}.json",
-    "./{languageTag}/file.json",
-    "../folder/{languageTag}/file.json",
-    "./{languageTag}.json",
-    "./{languageTag}/folder/file.json",
+    "/folder/{languageTag}.yaml",
+    "./{languageTag}/file.yaml",
+    "../folder/{languageTag}/file.yaml",
+    "./{languageTag}.yaml",
+    "./{languageTag}/folder/file.yaml",
   ];
 
   for (const pathPattern of validPathPatterns) {
@@ -24,23 +19,23 @@ test("valid path patterns", async () => {
   }
 });
 
-test("it should fail if the path pattern does not start as a ralaitve path with a /,./ or ../", async () => {
-  const pathPattern = "{languageTag}.json";
+test("rejects paths without an absolute or relative prefix", async () => {
+  const pathPattern = "{languageTag}.yaml";
 
   const isValid = Value.Check(plugin.settingsSchema!, {
     pathPattern,
   });
   expect(isValid).toBe(false);
 });
-test("if path patter does include the word `{languageTag}`", async () => {
-  const pathPattern = "./examplePath.json";
+test("rejects paths without the languageTag placeholder", async () => {
+  const pathPattern = "./examplePath.yaml";
 
   const isValid = Value.Check(plugin.settingsSchema!, {
     pathPattern,
   });
   expect(isValid).toBe(false);
 });
-test("if path patte end with .json", async () => {
+test("rejects paths without a YAML extension", async () => {
   const pathPattern = "./{languageTag}.";
 
   const isValid = Value.Check(plugin.settingsSchema!, {
@@ -48,26 +43,26 @@ test("if path patte end with .json", async () => {
   });
   expect(isValid).toBe(false);
 });
-test("if curly brackets {} does to cointain the word languageTag", async () => {
-  const pathPattern = "./{en}.json";
+test("rejects paths with unsupported placeholders", async () => {
+  const pathPattern = "./{en}.yaml";
 
   const isValid = Value.Check(plugin.settingsSchema!, {
     pathPattern,
   });
   expect(isValid).toBe(false);
 });
-test("if curly brackets {} does to cointain the word languageTag", async () => {
-  const pathPattern = "./{languageTag}/*.json";
+test("rejects wildcard paths", async () => {
+  const pathPattern = "./{languageTag}/*.yaml";
   const isValid = Value.Check(plugin.settingsSchema!, {
     pathPattern,
   });
   expect(isValid).toBe(false);
 });
-test("if pathPattern with namespaces include the correct pathpattern schema", async () => {
+test("accepts valid namespace paths", async () => {
   const pathPattern = {
-    website: "./{languageTag}examplerFolder/ExampleFile.json",
-    app: "../{languageTag}examplerFolder/ExampleFile.json",
-    footer: "./{languageTag}examplerFolder/ExampleFile.json",
+    website: "./{languageTag}examplerFolder/ExampleFile.yaml",
+    app: "../{languageTag}examplerFolder/ExampleFile.yaml",
+    footer: "./{languageTag}examplerFolder/ExampleFile.yaml",
   };
   const isValid = Value.Check(plugin.settingsSchema!, {
     pathPattern,
@@ -75,11 +70,11 @@ test("if pathPattern with namespaces include the correct pathpattern schema", as
   expect(isValid).toBe(true);
 });
 
-test("if pathPattern with namespaces include a incorrect pathpattern ", async () => {
+test("rejects invalid namespace paths", async () => {
   const pathPattern = {
-    website: "./folder/file.json",
-    app: "../{languageTag}folder/file.json",
-    footer: "./{languageTag}folder/file.json",
+    website: "./folder/file.yaml",
+    app: "../{languageTag}folder/file.yaml",
+    footer: "./{languageTag}folder/file.yaml",
   };
   const isValid = Value.Check(plugin.settingsSchema!, {
     pathPattern,
