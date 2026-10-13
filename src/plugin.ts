@@ -162,7 +162,7 @@ async function getFileToParse(
       validateMessageValue(value, [key], pathWithLanguage);
     }
 
-    return flattenMessages(yaml as Record<string, unknown>);
+    return flattenMessages(yaml as Record<string, unknown>, pathWithLanguage);
   } catch (e) {
     // if the namespace doesn't exist for this dir -> continue
     if ((e as any).code === "FileNotFound" || (e as any).code === "ENOENT") {
