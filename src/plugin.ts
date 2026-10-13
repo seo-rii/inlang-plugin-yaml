@@ -501,9 +501,17 @@ function serializeFile(
     result = unflatten(result, {
       //prevent numbers from creating arrays automatically
       object: true,
+      transformKey: (key) => replaceAll(key, "u002E", "."),
     });
+  } else {
+    result = Object.fromEntries(
+      Object.entries(result).map(([key, value]) => [
+        replaceAll(key, "u002E", "."),
+        value,
+      ])
+    );
   }
-  return replaceAll(YAML.dump(result), "u002E", ".");
+  return YAML.dump(result);
 }
 
 /**
