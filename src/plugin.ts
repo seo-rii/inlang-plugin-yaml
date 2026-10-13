@@ -5,7 +5,7 @@ import type {
   LanguageTag,
   Plugin,
   NodeishFilesystemSubset,
-} from "@inlang/sdk";
+} from "@inlang/plugin";
 import { PluginSettings } from "./settings.js";
 import { flattenMessages, unflattenMessages } from "./keyPaths.js";
 import { escapeRegExp, replaceAll } from "./utilities.js";
