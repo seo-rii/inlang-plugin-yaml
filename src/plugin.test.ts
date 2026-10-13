@@ -2,21 +2,22 @@
 import { expect, it, describe } from "vitest";
 import type { PluginSettings } from "./settings.js";
 import {
-  Message,
-  ProjectSettings,
-  Variant,
+  type Message,
+  type ProjectSettings,
+  type Variant,
   createVariant,
   getVariant,
 } from "@inlang/sdk";
 import { plugin } from "./plugin.js";
 import { createNodeishMemoryFs } from "@lix-js/fs";
+import YAML from "js-yaml";
 
-const pluginId = "plugin.inlang.json";
+const pluginId = "plugin.inlang.yaml";
 
 describe("loadMessage", () => {
   it("should return messages if the path pattern is valid", async () => {
     const fs = createNodeishMemoryFs();
-    await fs.writeFile("./en.json", JSON.stringify({ test: "Hello world" }));
+    await fs.writeFile("./en.yaml", YAML.dump({ test: "Hello world" }));
 
     const settings = {
       sourceLanguageTag: "en",
@@ -24,7 +25,7 @@ describe("loadMessage", () => {
       modules: [],
       [pluginId]: {
         pathPattern: {
-          common: "./{languageTag}.json",
+          common: "./{languageTag}.yaml",
         },
       } satisfies PluginSettings,
     } satisfies ProjectSettings;
@@ -37,9 +38,9 @@ describe("loadMessage", () => {
     expect(variant?.pattern[0]?.type).toBe("Text");
   });
 
-  it("should work with empty json files", async () => {
+  it("should work with empty YAML mappings", async () => {
     const fs = createNodeishMemoryFs();
-    await fs.writeFile("./en.json", JSON.stringify({}));
+    await fs.writeFile("./en.yaml", YAML.dump({}));
 
     const settings = {
       sourceLanguageTag: "en",
@@ -47,19 +48,19 @@ describe("loadMessage", () => {
       modules: [],
       [pluginId]: {
         pathPattern: {
-          common: "./{languageTag}.json",
+          common: "./{languageTag}.yaml",
         },
       } satisfies PluginSettings,
     } satisfies ProjectSettings;
 
-    expect(
+    await expect(
       plugin.loadMessages!({ settings, nodeishFs: fs }),
-    ).resolves.toBeTruthy();
+    ).resolves.toEqual([]);
   });
 
   it("should work with not yet existing files", async () => {
     const fs = createNodeishMemoryFs();
-    await fs.writeFile("./en.json", JSON.stringify({ test: "Hello world" }));
+    await fs.writeFile("./en.yaml", YAML.dump({ test: "Hello world" }));
 
     const settings = {
       sourceLanguageTag: "en",
@@ -67,20 +68,20 @@ describe("loadMessage", () => {
       modules: [],
       [pluginId]: {
         pathPattern: {
-          common: "./{languageTag}.json",
+          common: "./{languageTag}.yaml",
         },
       } satisfies PluginSettings,
     } satisfies ProjectSettings;
 
-    expect(
+    await expect(
       plugin.loadMessages!({ settings, nodeishFs: fs }),
     ).resolves.toBeTruthy();
   });
 
-  it("should add multible variants to the same message", async () => {
+  it("should add multiple variants to the same message", async () => {
     const fs = createNodeishMemoryFs();
-    await fs.writeFile("./en.json", JSON.stringify({ test: "Hello world" }));
-    await fs.writeFile("./de.json", JSON.stringify({ test: "Hallo welt" }));
+    await fs.writeFile("./en.yaml", YAML.dump({ test: "Hello world" }));
+    await fs.writeFile("./de.yaml", YAML.dump({ test: "Hallo welt" }));
 
     const settings = {
       sourceLanguageTag: "en",
@@ -88,7 +89,7 @@ describe("loadMessage", () => {
       modules: [],
       [pluginId]: {
         pathPattern: {
-          common: "./{languageTag}.json",
+          common: "./{languageTag}.yaml",
         },
       } satisfies PluginSettings,
     } satisfies ProjectSettings;
@@ -110,8 +111,8 @@ describe("loadMessage", () => {
     const fs = createNodeishMemoryFs();
     await fs.mkdir("./en");
     await fs.writeFile(
-      "./en/common.json",
-      JSON.stringify({ test: "Hello world" }),
+      "./en/common.yaml",
+      YAML.dump({ test: "Hello world" }),
     );
 
     const settings = {
@@ -120,7 +121,7 @@ describe("loadMessage", () => {
       modules: [],
       [pluginId]: {
         pathPattern: {
-          common: "./{languageTag}/common.json",
+          common: "./{languageTag}/common.yaml",
         },
       } satisfies PluginSettings,
     } satisfies ProjectSettings;
@@ -133,10 +134,10 @@ describe("loadMessage", () => {
     expect(variant?.pattern[0]?.type).toBe("Text");
   });
 
-  it("should work with empty json files (namespace)", async () => {
+  it("should work with empty YAML mappings (namespace)", async () => {
     const fs = createNodeishMemoryFs();
     await fs.mkdir("./en");
-    await fs.writeFile("./en/common.json", JSON.stringify({}));
+    await fs.writeFile("./en/common.yaml", YAML.dump({}));
 
     const settings = {
       sourceLanguageTag: "en",
@@ -144,22 +145,22 @@ describe("loadMessage", () => {
       modules: [],
       [pluginId]: {
         pathPattern: {
-          common: "./{languageTag}/common.json",
+          common: "./{languageTag}/common.yaml",
         },
       } satisfies PluginSettings,
     } satisfies ProjectSettings;
 
-    expect(
+    await expect(
       plugin.loadMessages!({ settings, nodeishFs: fs }),
-    ).resolves.toBeTruthy();
+    ).resolves.toEqual([]);
   });
 
   it("should work with not yet existing files (namespace)", async () => {
     const fs = createNodeishMemoryFs();
     await fs.mkdir("./en");
     await fs.writeFile(
-      "./en/common.json",
-      JSON.stringify({ test: "Hello world" }),
+      "./en/common.yaml",
+      YAML.dump({ test: "Hello world" }),
     );
 
     const settings = {
@@ -168,27 +169,27 @@ describe("loadMessage", () => {
       modules: [],
       [pluginId]: {
         pathPattern: {
-          common: "./{languageTag}/common.json",
+          common: "./{languageTag}/common.yaml",
         },
       } satisfies PluginSettings,
     } satisfies ProjectSettings;
 
-    expect(
+    await expect(
       plugin.loadMessages!({ settings, nodeishFs: fs }),
     ).resolves.toBeTruthy();
   });
 
-  it("should add multible variants to the same message (namespace)", async () => {
+  it("should add multiple variants to the same message (namespace)", async () => {
     const fs = createNodeishMemoryFs();
     await fs.mkdir("./en");
     await fs.mkdir("./de");
     await fs.writeFile(
-      "./en/common.json",
-      JSON.stringify({ test: "Hello world" }),
+      "./en/common.yaml",
+      YAML.dump({ test: "Hello world" }),
     );
     await fs.writeFile(
-      "./de/common.json",
-      JSON.stringify({ test: "Hallo welt" }),
+      "./de/common.yaml",
+      YAML.dump({ test: "Hallo welt" }),
     );
 
     const settings = {
@@ -197,7 +198,7 @@ describe("loadMessage", () => {
       modules: [],
       [pluginId]: {
         pathPattern: {
-          common: "./{languageTag}/common.json",
+          common: "./{languageTag}/common.yaml",
         },
       } satisfies PluginSettings,
     } satisfies ProjectSettings;
@@ -215,15 +216,15 @@ describe("loadMessage", () => {
   });
 
   it("should not throw an error when load messages with empty namespaces", async () => {
-    const test = JSON.stringify({
+    const test = YAML.dump({
       test: "test",
     });
     const fs = createNodeishMemoryFs();
     await fs.mkdir("./en");
     await fs.mkdir("./de");
-    await fs.writeFile("./en/common.json", test);
-    await fs.writeFile("./en/vital.json", test);
-    await fs.writeFile("./de/common.json", test);
+    await fs.writeFile("./en/common.yaml", test);
+    await fs.writeFile("./en/vital.yaml", test);
+    await fs.writeFile("./de/common.yaml", test);
 
     const settings = {
       sourceLanguageTag: "en",
@@ -231,55 +232,41 @@ describe("loadMessage", () => {
       modules: [],
       [pluginId]: {
         pathPattern: {
-          common: "./{languageTag}/common.json",
-          vital: "./{languageTag}/vital.json",
+          common: "./{languageTag}/common.yaml",
+          vital: "./{languageTag}/vital.yaml",
         },
       } satisfies PluginSettings,
     } satisfies ProjectSettings;
 
-    let isThrown = false;
-    try {
-      await plugin.loadMessages!({
-        settings,
-        nodeishFs: fs,
-      });
-    } catch (e) {
-      isThrown = true;
-    }
-    expect(isThrown).toBe(false);
+    const messages = await plugin.loadMessages!({ settings, nodeishFs: fs });
+    expect(messages.map((message) => message.id)).toEqual(["common:test", "vital:test"]);
+    expect(messages[0]?.variants.map((variant) => variant.languageTag)).toEqual(["en", "de"]);
+    expect(messages[1]?.variants.map((variant) => variant.languageTag)).toEqual(["en"]);
   });
 
-  it("should get the correct languages, when single namespace is defined as a pathPattern string 'pathPattern: `public/locales/{languageTag}/translation.json`'", async () => {
-    const test = JSON.stringify({
+  it("should load both languages with a string path pattern", async () => {
+    const test = YAML.dump({
       test: "test",
     });
     const fs = createNodeishMemoryFs();
     await fs.mkdir("./en");
     await fs.mkdir("./de");
-    await fs.writeFile("./en/common.json", test);
-    await fs.writeFile("./de/common.json", test);
+    await fs.writeFile("./en/common.yaml", test);
+    await fs.writeFile("./de/common.yaml", test);
 
     const settings = {
       sourceLanguageTag: "en",
       languageTags: ["en", "de"],
       modules: [],
       [pluginId]: {
-        pathPattern: {
-          pathPattern: "./{languageTag}/common.json",
-        },
+        pathPattern: "./{languageTag}/common.yaml",
       } satisfies PluginSettings,
     } satisfies ProjectSettings;
 
-    let isThrown = false;
-    try {
-      await plugin.loadMessages!({
-        settings,
-        nodeishFs: fs,
-      });
-    } catch (e) {
-      isThrown = true;
-    }
-    expect(isThrown).toBe(false);
+    const messages = await plugin.loadMessages!({ settings, nodeishFs: fs });
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.id).toBe("test");
+    expect(messages[0]?.variants.map((variant) => variant.languageTag)).toEqual(["en", "de"]);
   });
 
   it("should not throw an error when the path to the resources is not present", async () => {
@@ -290,34 +277,27 @@ describe("loadMessage", () => {
       languageTags: ["en"],
       modules: [],
       [pluginId]: {
-        pathPattern: "./lang/{languageTag}.json",
+        pathPattern: "./lang/{languageTag}.yaml",
       } satisfies PluginSettings,
     } satisfies ProjectSettings;
 
-    let isThrown = false;
-    try {
-      await plugin.loadMessages!({
-        settings,
-        nodeishFs: fs,
-      });
-    } catch (e) {
-      isThrown = true;
-    }
-    expect(isThrown).toBe(false);
+    await expect(
+      plugin.loadMessages!({ settings, nodeishFs: fs }),
+    ).resolves.toEqual([]);
   });
 });
 
 describe("saveMessage", () => {
   it("test string pathPattern", async () => {
     const fs = createNodeishMemoryFs();
-    await fs.writeFile("./en.json", JSON.stringify({}));
+    await fs.writeFile("./en.yaml", YAML.dump({}));
 
     const settings = {
       sourceLanguageTag: "en",
       languageTags: ["en"],
       modules: [],
       [pluginId]: {
-        pathPattern: "./{languageTag}.json",
+        pathPattern: "./{languageTag}.yaml",
       } satisfies PluginSettings,
     } satisfies ProjectSettings;
 
@@ -341,11 +321,14 @@ describe("saveMessage", () => {
       },
     ];
     await plugin.saveMessages!({ messages, settings, nodeishFs: fs });
+    expect(
+      YAML.load(await fs.readFile("./en.yaml", { encoding: "utf-8" })),
+    ).toEqual({ test: "Hello world" });
   });
 
   it("test object pathPattern", async () => {
     const fs = createNodeishMemoryFs();
-    await fs.writeFile("./en.json", JSON.stringify({}));
+    await fs.writeFile("./en.yaml", YAML.dump({}));
 
     const settings = {
       sourceLanguageTag: "en",
@@ -353,7 +336,7 @@ describe("saveMessage", () => {
       modules: [],
       [pluginId]: {
         pathPattern: {
-          common: "./{languageTag}/common.json",
+          common: "./{languageTag}/common.yaml",
         },
       } satisfies PluginSettings,
     } satisfies ProjectSettings;
@@ -395,6 +378,12 @@ describe("saveMessage", () => {
       },
     ];
     await plugin.saveMessages!({ messages, settings, nodeishFs: fs });
+    expect(
+      YAML.load(await fs.readFile("./en/common.yaml", { encoding: "utf-8" })),
+    ).toEqual({
+      test: "Hello world",
+      test2: "Hello world2",
+    });
   });
 });
 
@@ -402,8 +391,8 @@ describe("variable reference", () => {
   it("should correctly identify variable reference (at the end)", async () => {
     const fs = createNodeishMemoryFs();
     await fs.writeFile(
-      "./en.json",
-      JSON.stringify({ test: "Hello {username}" }),
+      "./en.yaml",
+      YAML.dump({ test: "Hello {username}" }),
     );
 
     const settings = {
@@ -412,7 +401,7 @@ describe("variable reference", () => {
       modules: [],
       [pluginId]: {
         pathPattern: {
-          common: "./{languageTag}.json",
+          common: "./{languageTag}.yaml",
         },
       } satisfies PluginSettings,
     } satisfies ProjectSettings;
@@ -438,8 +427,8 @@ describe("variable reference", () => {
   it("should correctly identify variable reference (at the beginning)", async () => {
     const fs = createNodeishMemoryFs();
     await fs.writeFile(
-      "./en.json",
-      JSON.stringify({ test: "{username} the great" }),
+      "./en.yaml",
+      YAML.dump({ test: "{username} the great" }),
     );
 
     const settings = {
@@ -447,7 +436,7 @@ describe("variable reference", () => {
       languageTags: ["en"],
       modules: [],
       [pluginId]: {
-        pathPattern: "./{languageTag}.json",
+        pathPattern: "./{languageTag}.yaml",
       } satisfies PluginSettings,
     } satisfies ProjectSettings;
 
@@ -472,8 +461,8 @@ describe("variable reference", () => {
   it("should correctly apply the variableReferencePattern", async () => {
     const fs = createNodeishMemoryFs();
     await fs.writeFile(
-      "./en.json",
-      JSON.stringify({ test: "Hello @username" }),
+      "./en.yaml",
+      YAML.dump({ test: "Hello @username" }),
     );
 
     const settings = {
@@ -481,7 +470,7 @@ describe("variable reference", () => {
       languageTags: ["en"],
       modules: [],
       [pluginId]: {
-        pathPattern: "./{languageTag}.json",
+        pathPattern: "./{languageTag}.yaml",
         variableReferencePattern: ["@"],
       } satisfies PluginSettings,
     } satisfies ProjectSettings;
@@ -501,29 +490,22 @@ describe("variable reference", () => {
   });
 });
 
-describe("formatting", () => {
-  it("should preserve the spacing of the source language and determine the spacing for new language resources", async () => {
-    // @prettier-ignore
-    const with4Spaces = `{
-    "test": "test"
-}`;
-
-    // @prettier-ignore
-    const withTabs = `{
-	"test": "test"
-}`;
+describe("YAML serialization", () => {
+  it("should preserve messages from differently formatted YAML when adding a language", async () => {
+    const plainScalar = "test: test\n";
+    const quotedScalar = "test: 'test'\n";
 
     const fs = createNodeishMemoryFs();
-    await fs.writeFile("./en.json", with4Spaces);
-    await fs.writeFile("./fr.json", with4Spaces);
-    await fs.writeFile("./de.json", withTabs);
+    await fs.writeFile("./en.yaml", plainScalar);
+    await fs.writeFile("./fr.yaml", plainScalar);
+    await fs.writeFile("./de.yaml", quotedScalar);
 
     const settings = {
       sourceLanguageTag: "en",
       languageTags: ["en", "de", "fr"],
       modules: [],
       [pluginId]: {
-        pathPattern: "./{languageTag}.json",
+        pathPattern: "./{languageTag}.yaml",
       } satisfies PluginSettings,
     } satisfies ProjectSettings;
 
@@ -550,39 +532,31 @@ describe("formatting", () => {
       nodeishFs: fs,
     });
 
-    const file1 = await fs.readFile("./en.json", { encoding: "utf-8" });
-    const file2 = await fs.readFile("./fr.json", { encoding: "utf-8" });
-    const file3 = await fs.readFile("./de.json", { encoding: "utf-8" });
-    const file4 = await fs.readFile("./es.json", { encoding: "utf-8" });
+    const file1 = await fs.readFile("./en.yaml", { encoding: "utf-8" });
+    const file2 = await fs.readFile("./fr.yaml", { encoding: "utf-8" });
+    const file3 = await fs.readFile("./de.yaml", { encoding: "utf-8" });
+    const file4 = await fs.readFile("./es.yaml", { encoding: "utf-8" });
 
-    expect(file1).toBe(with4Spaces);
-    expect(file2).toBe(with4Spaces);
-    expect(file3).toBe(with4Spaces);
-    expect(file4).toBe(with4Spaces);
+    expect(YAML.load(file1)).toEqual({ test: "test" });
+    expect(YAML.load(file2)).toEqual({ test: "test" });
+    expect(YAML.load(file3)).toEqual({ test: "test" });
+    expect(YAML.load(file4)).toEqual({ test: "test" });
   });
 
-  it("should preserve the 'ends with new line' of the source language and determine it for new language resources", async () => {
-    // @prettier-ignore
-    const withNewLine = `{
-	"test": "test"
-}
-`;
-
-    // @prettier-ignore
-    const withoutNewLine = `{
-	"test": "test"
-}`;
+  it("should preserve messages whether the input ends with a newline or not", async () => {
+    const withNewLine = "test: test\n";
+    const withoutNewLine = "test: test";
 
     const fs = createNodeishMemoryFs();
-    await fs.writeFile("./en.json", withNewLine);
-    await fs.writeFile("./fr.json", withoutNewLine);
+    await fs.writeFile("./en.yaml", withNewLine);
+    await fs.writeFile("./fr.yaml", withoutNewLine);
 
     const settings = {
       sourceLanguageTag: "en",
       languageTags: ["en", "de", "fr"],
       modules: [],
       [pluginId]: {
-        pathPattern: "./{languageTag}.json",
+        pathPattern: "./{languageTag}.yaml",
       } satisfies PluginSettings,
     } satisfies ProjectSettings;
 
@@ -591,28 +565,25 @@ describe("formatting", () => {
       nodeishFs: fs,
     });
     await plugin.saveMessages!({ messages, settings, nodeishFs: fs });
-    const file1 = await fs.readFile("./en.json", { encoding: "utf-8" });
-    const file2 = await fs.readFile("./fr.json", { encoding: "utf-8" });
-    expect(file1).toBe(withNewLine);
-    expect(file2).toBe(withNewLine);
+    const file1 = await fs.readFile("./en.yaml", { encoding: "utf-8" });
+    const file2 = await fs.readFile("./fr.yaml", { encoding: "utf-8" });
+    expect(YAML.load(file1)).toEqual({ test: "test" });
+    expect(YAML.load(file2)).toEqual({ test: "test" });
   });
 
-  it("should escape `.` in flattened json structures", async () => {
-    const enResource = `{
-    "test.": "test",
-	"test.test": "test"
-}`;
+  it("should escape `.` in flattened YAML structures", async () => {
+    const enResource = "test.: test\ntest.test: test\n";
 
     const fs = createNodeishMemoryFs();
     await fs.mkdir("./en");
-    await fs.writeFile("./en/common.json", enResource);
+    await fs.writeFile("./en/common.yaml", enResource);
 
     const settings = {
       sourceLanguageTag: "en",
       languageTags: ["en"],
       modules: [],
       [pluginId]: {
-        pathPattern: { common: "./{languageTag}/common.json" },
+        pathPattern: { common: "./{languageTag}/common.yaml" },
       } satisfies PluginSettings,
     } satisfies ProjectSettings;
 
@@ -660,17 +631,12 @@ describe("formatting", () => {
     expect(messages).toStrictEqual(reference);
   });
 
-  it("should escape `.` in nested json structures", async () => {
-    const enResource = `{
-	"a.": {
-		"b": "test"
-	},
-	"c.": "test"
-}`;
+  it("should escape `.` in nested YAML structures", async () => {
+    const enResource = "a.:\n  b: test\nc.: test\n";
 
     const fs = createNodeishMemoryFs();
     await fs.mkdir("./en");
-    await fs.writeFile("./en/common.json", enResource);
+    await fs.writeFile("./en/common.yaml", enResource);
 
     const settings = {
       sourceLanguageTag: "en",
@@ -678,7 +644,7 @@ describe("formatting", () => {
       modules: [],
       [pluginId]: {
         pathPattern: {
-          common: "./{languageTag}/common.json",
+          common: "./{languageTag}/common.yaml",
         },
       } satisfies PluginSettings,
     } satisfies ProjectSettings;
@@ -729,30 +695,27 @@ describe("formatting", () => {
       settings,
       nodeishFs: fs,
     });
-    const file = await fs.readFile("./en/common.json", { encoding: "utf-8" });
-    const json = JSON.parse(file as string);
-    expect(json["a."].b).toStrictEqual("test");
-    expect(json["c."]).toStrictEqual("test");
+    const file = await fs.readFile("./en/common.yaml", { encoding: "utf-8" });
+    expect(YAML.load(file)).toEqual({ "a.": { b: "test" }, "c.": "test" });
   });
 
   it("should handle empty objects correctly", async () => {
-    const content = JSON.stringify(
+    const content = YAML.dump(
       {
         a: "test",
         b: {},
       },
-      undefined,
-      2,
+      { indent: 2 },
     );
     const fs = createNodeishMemoryFs();
-    await fs.writeFile("./en.json", content);
+    await fs.writeFile("./en.yaml", content);
 
     const settings = {
       sourceLanguageTag: "en",
       languageTags: ["en"],
       modules: [],
       [pluginId]: {
-        pathPattern: "./{languageTag}.json",
+        pathPattern: "./{languageTag}.yaml",
       } satisfies PluginSettings,
     } satisfies ProjectSettings;
 
@@ -767,42 +730,33 @@ describe("formatting", () => {
       nodeishFs: fs,
     });
 
-    const newContent = await fs.readFile("./en.json", { encoding: "utf-8" });
+    const newContent = await fs.readFile("./en.yaml", { encoding: "utf-8" });
 
-    expect(JSON.parse(newContent).b).toBeUndefined();
+    expect(YAML.load(newContent)).toEqual({ a: "test" });
   });
 
-  it("should correctly detect the nesting in the source file and determine for new ones", async () => {
-    const withNesting = JSON.stringify(
+  it("should preserve nested messages when adding a language", async () => {
+    const withNesting = YAML.dump(
       {
         test: {
           test: "test",
         },
       },
-      undefined,
-      2,
-    );
-
-    const withoutNesting = JSON.stringify(
-      {
-        "test.test": "test",
-      },
-      undefined,
-      4,
+      { indent: 2 },
     );
 
     const fs = createNodeishMemoryFs();
 
-    await fs.writeFile("./en.json", withNesting);
-    await fs.writeFile("./fr.json", withNesting);
-    await fs.writeFile("./de.json", withoutNesting);
+    await fs.writeFile("./en.yaml", withNesting);
+    await fs.writeFile("./fr.yaml", withNesting);
+    await fs.writeFile("./de.yaml", withNesting);
 
     const settings = {
       sourceLanguageTag: "en",
       languageTags: ["en", "de", "fr"],
       modules: [],
       [pluginId]: {
-        pathPattern: "./{languageTag}.json",
+        pathPattern: "./{languageTag}.yaml",
       } satisfies PluginSettings,
     } satisfies ProjectSettings;
 
@@ -835,33 +789,31 @@ describe("formatting", () => {
       nodeishFs: fs,
     });
 
-    const file1 = await fs.readFile("./en.json", { encoding: "utf-8" });
-    const file2 = await fs.readFile("./fr.json", { encoding: "utf-8" });
-    const file3 = await fs.readFile("./de.json", { encoding: "utf-8" });
-    const file4 = await fs.readFile("./es.json", { encoding: "utf-8" });
+    const file1 = await fs.readFile("./en.yaml", { encoding: "utf-8" });
+    const file2 = await fs.readFile("./fr.yaml", { encoding: "utf-8" });
+    const file3 = await fs.readFile("./de.yaml", { encoding: "utf-8" });
+    const file4 = await fs.readFile("./es.yaml", { encoding: "utf-8" });
 
-    expect(file1).toBe(withNesting);
-    expect(file2).toBe(withNesting);
-    expect(file3).toBe(withNesting);
-    expect(file4).toBe(withNesting);
+    expect(YAML.load(file1)).toEqual({ test: { test: "test" } });
+    expect(YAML.load(file2)).toEqual({ test: { test: "test" } });
+    expect(YAML.load(file3)).toEqual({ test: { test: "test" } });
+    expect(YAML.load(file4)).toEqual({ test: { test: "test" } });
   });
 });
 
 describe("roundTrip", () => {
   it("should serialize newly added messages", async () => {
-    const enResource = `{
-	"test": "{username}"
-}`;
+    const enResource = "test: '{username}'\n";
 
     const fs = createNodeishMemoryFs();
-    await fs.writeFile("./en.json", enResource);
+    await fs.writeFile("./en.yaml", enResource);
 
     const settings = {
       sourceLanguageTag: "en",
       languageTags: ["en"],
       modules: [],
       [pluginId]: {
-        pathPattern: "./{languageTag}.json",
+        pathPattern: "./{languageTag}.yaml",
       } satisfies PluginSettings,
     } satisfies ProjectSettings;
 
@@ -891,22 +843,18 @@ describe("roundTrip", () => {
       settings,
       nodeishFs: fs,
     });
-    const newFile = (await fs.readFile("./en.json", {
+    const newFile = (await fs.readFile("./en.yaml", {
       encoding: "utf-8",
     })) as string;
-    const json = JSON.parse(newFile);
-    expect(json.test).toBe("{username}");
-    expect(json.test2).toBe("This is new");
+    expect(YAML.load(newFile)).toEqual({ test: "{username}", test2: "This is new" });
   });
 
   it("should correctly parse resources with pathPattern that contain namespaces", async () => {
-    const testResource = `{
-	"test": "test"
-}`;
+    const testResource = "test: test\n";
 
     const fs = createNodeishMemoryFs();
     await fs.mkdir("./en");
-    await fs.writeFile("./en/common.json", testResource);
+    await fs.writeFile("./en/common.yaml", testResource);
 
     const settings = {
       sourceLanguageTag: "en",
@@ -914,7 +862,7 @@ describe("roundTrip", () => {
       modules: [],
       [pluginId]: {
         pathPattern: {
-          common: "./{languageTag}/common.json",
+          common: "./{languageTag}/common.yaml",
         },
       } satisfies PluginSettings,
     } satisfies ProjectSettings;
@@ -946,7 +894,7 @@ describe("roundTrip", () => {
   });
 
   it("should successfully do a roundtrip with complex content", async () => {
-    const complexContent = JSON.stringify(
+    const complexContent = YAML.dump(
       {
         "//multiLineString": {
           multiline: "This is a\nmulti-line\nstring.",
@@ -957,11 +905,10 @@ describe("roundTrip", () => {
         },
         test: 'Single "quote" test',
       },
-      undefined,
-      4,
+      { indent: 4 },
     );
     const fs = createNodeishMemoryFs();
-    await fs.writeFile("./en.json", complexContent);
+    await fs.writeFile("./en.yaml", complexContent);
 
     const settings = {
       sourceLanguageTag: "en",
@@ -969,7 +916,7 @@ describe("roundTrip", () => {
       modules: [],
       [pluginId]: {
         pathPattern: {
-          common: "./{languageTag}.json",
+          common: "./{languageTag}.yaml",
         },
       } satisfies PluginSettings,
     } satisfies ProjectSettings;
@@ -978,37 +925,7 @@ describe("roundTrip", () => {
       settings,
       nodeishFs: fs,
     });
-    plugin.saveMessages!({ messages, settings, nodeishFs: fs });
-    const newMessage = await plugin.loadMessages!({
-      settings,
-      nodeishFs: fs,
-    });
-    expect(newMessage).toStrictEqual(messages);
-  });
-
-  it("should successfully do a roundtrip with empty message value", async () => {
-    const test = JSON.stringify({
-      test: "",
-    });
-    const fs = createNodeishMemoryFs();
-    await fs.writeFile("./en.json", test);
-
-    const settings = {
-      sourceLanguageTag: "en",
-      languageTags: ["en"],
-      modules: [],
-      [pluginId]: {
-        pathPattern: {
-          common: "./{languageTag}.json",
-        },
-      } satisfies PluginSettings,
-    } satisfies ProjectSettings;
-
-    const messages = await plugin.loadMessages!({
-      settings,
-      nodeishFs: fs,
-    });
-    plugin.saveMessages!({ messages, settings, nodeishFs: fs });
+    await plugin.saveMessages!({ messages, settings, nodeishFs: fs });
     const newMessage = await plugin.loadMessages!({
       settings,
       nodeishFs: fs,
