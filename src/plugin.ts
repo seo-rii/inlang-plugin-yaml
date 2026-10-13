@@ -7,12 +7,8 @@ import type {
   NodeishFilesystemSubset,
 } from "@inlang/sdk";
 import { PluginSettings } from "./settings.js";
-import { replaceAll } from "./utilities.js";
-import { flatten, unflatten } from "flat";
+import { flattenMessages, unflattenMessages } from "./keyPaths.js";
 import YAML from 'js-yaml';
-
-// global variables to store the formatting of the file
-let hasNestedKeys = false;
 
 const id = "plugin.inlang.yaml";
 
@@ -74,7 +70,7 @@ async function loadMessages(args: {
         );
         for (const [key, value] of Object.entries(messagesFromFile)) {
           if (typeof value === "string") {
-            const prefixedKey = prefix + ":" + replaceAll(key, "u002E", ".");
+            const prefixedKey = prefix + ":" + key;
             addVariantToMessages(
               messages,
               prefixedKey,
@@ -96,7 +92,7 @@ async function loadMessages(args: {
         if (typeof value === "string") {
           addVariantToMessages(
             messages,
-            replaceAll(key, "u002E", "."),
+            key,
             languageTag,
             value,
             args.pluginSettings
@@ -152,20 +148,7 @@ async function getFileToParse(
       validateMessageValue(value, [key], pathWithLanguage);
     }
 
-    if (Object.values(yaml).some((value) => typeof value === "object")) {
-      hasNestedKeys = true;
-    }
-
-    const flattenedMessages: Record<string, unknown> = hasNestedKeys
-      ? flatten(yaml, {
-          transformKey: function (key) {
-            //replace dots in keys with unicode
-            return replaceAll(key, ".", "u002E");
-          },
-        })
-      : yaml as Record<string, unknown>;
-
-    return flattenedMessages;
+    return flattenMessages(yaml as Record<string, unknown>);
   } catch (e) {
     // if the namespace doesn't exist for this dir -> continue
     if ((e as any).code === "FileNotFound" || (e as any).code === "ENOENT") {
@@ -486,32 +469,11 @@ function serializeFile(
   messages: Record<Message["id"], Variant["pattern"]>,
   variableReferencePattern: PluginSettings["variableReferencePattern"]
 ): string {
-  let result: Record<string, string> = {};
+  const result: Record<string, string> = Object.create(null);
   for (const [messageId, pattern] of Object.entries(messages)) {
-    //check if there are two dots after each other -> that would brake unflatten -> replace with unicode
-    let id = replaceAll(messageId, "..", "u002E.");
-    //check if the last char is a dot -> that would brake unflatten -> replace with unicode
-    if (id.slice(-1) === ".") {
-      id = id.replace(/.$/, "u002E");
-    }
-    result[id] = serializePattern(pattern, variableReferencePattern!);
+    result[messageId] = serializePattern(pattern, variableReferencePattern!);
   }
-  // for nested structures -> unflatten the keys
-  if (hasNestedKeys) {
-    result = unflatten(result, {
-      //prevent numbers from creating arrays automatically
-      object: true,
-      transformKey: (key) => replaceAll(key, "u002E", "."),
-    });
-  } else {
-    result = Object.fromEntries(
-      Object.entries(result).map(([key, value]) => [
-        replaceAll(key, "u002E", "."),
-        value,
-      ])
-    );
-  }
-  return YAML.dump(result);
+  return YAML.dump(unflattenMessages(result));
 }
 
 /**

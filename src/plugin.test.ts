@@ -593,7 +593,7 @@ describe("YAML serialization", () => {
     });
     const reference: Message[] = [
       {
-        id: "common:test.",
+        id: "common:test\\.",
         alias: {},
         selectors: [],
         variants: [
@@ -610,7 +610,7 @@ describe("YAML serialization", () => {
         ],
       },
       {
-        id: "common:test.test",
+        id: "common:test\\.test",
         alias: {},
         selectors: [],
         variants: [
@@ -655,7 +655,7 @@ describe("YAML serialization", () => {
     });
     const reference: Message[] = [
       {
-        id: "common:a..b",
+        id: "common:a\\..b",
         alias: {},
         selectors: [],
         variants: [
@@ -672,7 +672,7 @@ describe("YAML serialization", () => {
         ],
       },
       {
-        id: "common:c.",
+        id: "common:c\\.",
         alias: {},
         selectors: [],
         variants: [
